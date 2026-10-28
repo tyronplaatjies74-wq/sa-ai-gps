@@ -1,6 +1,7 @@
-const express=require('express');
-const app=express();
-const PORT=process.env.PORT||10000;
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 10000;
+app.use(express.json());
 
 const LOCATIONS=[
 {id:1,name:"Knysna Heads",town:"Knysna",lat:-34.0819,lng:23.0615,google:"https://www.google.com/maps/search/?api=1&query=Knysna+Heads"},
@@ -105,15 +106,74 @@ const LOCATIONS=[
 {id:100,name:"Garden Route Trail Park",town:"Knysna",lat:-34.02,lng:23.06,google:"https://www.google.com/maps/search/?api=1&query=Garden+Route+Trail+Park+Knysna"}
 ];
 
-function requirePayment(req,res,next){if(req.query.payment)return next();return res.status(402).json({x402:{price:"R2",message:"Add ?payment=paid"}})};
+// === GARDEN ROUTE ORACLE AI LOGIC ===
+function oracleSearch(query){
+  const q = query.toLowerCase();
+  let results = LOCATIONS.filter(l => 
+    l.name.toLowerCase().includes(q) || 
+    l.town.toLowerCase().includes(q)
+  );
+  if(results.length===0 && (q.includes('beach') || q.includes('sea'))){
+    results = LOCATIONS.filter(l=>l.name.toLowerCase().includes('beach')).slice(0,5);
+  }
+  if(results.length===0 && q.includes('food')) results = LOCATIONS.filter(l=>l.town==='Knysna').slice(0,3);
+  return results.slice(0,5);
+}
 
-app.get('/',(req,res)=>res.send(`<h1>🇿🇦 100 REAL SA Location Links API LIVE</h1><p>${LOCATIONS.length} REAL verified places</p><a href="/api/locations?payment=paid">View All 100</a><br><a href="/api/locations?town=Knysna&payment=paid">Knysna Only</a>`));
+app.get('/',(req,res)=>res.send(`
+<html><head><meta name="viewport" content="width=device-width"><title>Garden Route Oracle</title></head>
+<body style="font-family:sans-serif;padding:20px;max-width:600px;margin:auto">
+<h1>🇿🇦 GARDEN ROUTE ORACLE</h1>
+<p><b>100 REAL places — No fake data — x402 — First Specialist AI that lives on the Garden Route</b></p>
+<input id="q" placeholder="Ask: best beach in Knysna?" style="width:70%;padding:12px">
+<button onclick="ask()" style="padding:12px">Ask Oracle</button>
+<div id="a" style="margin-top:20px"></div>
+<p><small><a href="/api/locations?payment=paid">API All 100</a> | <a href="/api/locations?town=Knysna&payment=paid">Knysna API</a></small></p>
+<script>
+async function ask(){
+  const query=document.getElementById('q').value;
+  const res=await fetch('/api/oracle?q='+encodeURIComponent(query));
+  const data=await res.json();
+  let html='<h3>'+data.answer+'</h3>';
+  data.results.forEach(r=>{
+    html+='<div style="border:1px solid #ddd;padding:10px;margin:10px 0;border-radius:8px"><b>'+r.name+'</b> - '+r.town+'<br>'+
+    '<a href="'+r.google_maps+'">Google Maps</a> | <a href="'+r.waze+'">Waze</a> | <a href="'+r.apple_maps+'">Apple</a></div>';
+  });
+  document.getElementById('a').innerHTML=html;
+}
+</script>
+</body></html>
+`));
 
-app.get('/api/locations',(req,res)=>{
-  if(!req.query.payment) return res.status(402).json({x402:{price:"R2"}});
-  let d=LOCATIONS;
-  if(req.query.town) d=d.filter(l=>l.town.toLowerCase().includes(req.query.town.toLowerCase()));
-  res.json({count:d.length, all_real:true, locations:d.map(l=>({id:l.id,name:l.name,town:l.town,lat:l.lat,lng:l.lng,google_maps:l.google,waze:`https://waze.com/ul?q=${l.lat},${l.lng}`,apple_maps:`https://maps.apple.com/?q=${l.lat},${l.lng}`,embed:`https://www.google.com/maps?q=${l.lat},${l.lng}&z=15&output=embed`}))});
+// AI ENDPOINT — THIS IS THE SPECIALIST AI
+app.get('/api/oracle',(req,res)=>{
+  const q = req.query.q || 'Knysna';
+  const results = oracleSearch(q);
+  res.json({
+    oracle: "Garden Route Oracle",
+    query: q,
+    answer: results.length ? `Found ${results.length} REAL places for "${q}" on the Garden Route:` : `I live here. For "${q}", here are my top REAL spots:`,
+    count: results.length,
+    all_real: true,
+    results: results.map(l=>({
+      name:l.name, town:l.town, lat:l.lat, lng:l.lng,
+      google_maps:l.google,
+      waze:`https://waze.com/ul?ll=${l.lat},${l.lng}&navigate=yes`,
+      apple_maps:`https://maps.apple.com/?q=${l.lat},${l.lng}`,
+      embed:`https://www.google.com/maps?q=${l.lat},${l.lng}&z=15&output=embed`,
+      inside_oracle: true
+    })),
+    watermark: "Powered by Garden Route Oracle — 100 REAL — No fake data — sa-ai-gps",
+    business_pitch: "Want to be inside? R199/month — we send tourists to you"
+  });
 });
 
-app.listen(PORT,()=>console.log(`100 REAL LIVE - ${LOCATIONS.length} locations`));
+// OLD API STILL WORKS
+app.get('/api/locations',(req,res)=>{
+  if(!req.query.payment) return res.status(402).json({x402:{price:"R2", message:"Add ?payment=paid for AI agents, free for humans at /"}});
+  let d=LOCATIONS;
+  if(req.query.town) d=d.filter(l=>l.town.toLowerCase().includes(req.query.town.toLowerCase()));
+  res.json({count:d.length, all_real:true, locations:d.map(l=>({id:l.id,name:l.name,town:l.town,lat:l.lat,lng:l.lng,google_maps:l.google,waze:`https://waze.com/ul?ll=${l.lat},${l.lng}&navigate=yes`,apple_maps:`https://maps.apple.com/?q=${l.lat},${l.lng}`,embed:`https://www.google.com/maps?q=${l.lat},${l.lng}&z=15&output=embed`}))});
+});
+
+app.listen(PORT,()=>console.log(`GARDEN ROUTE ORACLE LIVE — ${LOCATIONS.length} REAL locations on ${PORT}`));
